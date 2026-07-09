@@ -1,0 +1,24 @@
+plugins {
+    id 'fabric-loom' version '1.14.10'
+    id 'maven-publish'
+}
+
+repositories {
+    maven { url 'https://maven.fabricmc.net/' }
+    maven { url 'https://repo.maven.apache.org/maven2' }
+    mavenCentral()
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:1.21.11"
+    mappings "net.fabricmc:yarn:1.21.11+build.1:v2"
+    modImplementation "net.fabricmc:fabric-loader:0.18.1"
+    modImplementation "net.fabricmc.fabric-api:fabric-api:0.141.3+1.21.11"
+}
+
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(21)
+}
+
+group = 'com.example'
+version = '1.0.0'
