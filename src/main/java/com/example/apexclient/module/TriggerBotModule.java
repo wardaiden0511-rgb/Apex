@@ -9,6 +9,7 @@ import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.AxeItem;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
+import net.minecraft.item.SwordItem;
 import net.minecraft.util.Hand;
 import net.minecraft.util.hit.EntityHitResult;
 import net.minecraft.util.hit.HitResult;
@@ -30,6 +31,16 @@ public class TriggerBotModule extends Module {
 
     private LivingEntity lastDetectedTarget = null;
 
+    // --- Cooldown + Random Delay State ---
+    /** The system time (ms) when the next attack is allowed. */
+    private long nextAttackTimeMs = 0;
+    /** Whether we are currently waiting for the weapon cooldown to become ready. */
+    private boolean waitingForCooldown = true;
+    /** Hash of the last held item to detect weapon swaps. */
+    private int lastHeldItemHash = -1;
+    /** Whether we were fully cooled down on the last tick. */
+    private boolean wasCooledDownLastTick = false;
+
     public TriggerBotModule() {
         super("Triggerbot");
     }
@@ -37,11 +48,20 @@ public class TriggerBotModule extends Module {
     @Override
     protected void onEnable() {
         lastDetectedTarget = null;
+        resetAttackTiming();
     }
 
     @Override
     protected void onDisable() {
         lastDetectedTarget = null;
+        resetAttackTiming();
+    }
+
+    private void resetAttackTiming() {
+        nextAttackTimeMs = 0;
+        waitingForCooldown = true;
+        lastHeldItemHash = -1;
+        wasCooledDownLastTick = false;
     }
 
     @Override
@@ -57,14 +77,40 @@ public class TriggerBotModule extends Module {
 
         ClientPlayerEntity player = client.player;
 
+        // Detect weapon swap - reset timing when switching items
+        int currentItemHash = getHeldItemHash(player);
+        if (currentItemHash != lastHeldItemHash) {
+            lastHeldItemHash = currentItemHash;
+            waitingForCooldown = true;
+            wasCooledDownLastTick = false;
+        }
+
         if (ApexConfig.triggerBotWeaponOnly && !isHoldingWeapon(player)) {
             lastDetectedTarget = null;
             return;
         }
 
-        // Respect vanilla cooldown first.
-        // Sword/axe cooldown differences are handled by Minecraft here.
-        if (!isAttackCooledDown(player)) {
+        // Check weapon cooldown progress (0.0 = just attacked, 1.0 = fully ready)
+        float cooldownProgress = player.getAttackCooldownProgress(0.0F);
+        boolean isCooledDown = cooldownProgress >= ATTACK_COOLDOWN_THRESHOLD;
+
+        // When cooldown first becomes ready, schedule the next attack with random delay
+        if (isCooledDown && !wasCooledDownLastTick) {
+            // Weapon just became ready - apply random delay on top
+            double randomDelayMs = getRandomDelayMs();
+            nextAttackTimeMs = System.currentTimeMillis() + (long) randomDelayMs;
+            waitingForCooldown = false;
+        }
+        wasCooledDownLastTick = isCooledDown;
+
+        // If still waiting for cooldown to become ready, don't attack
+        if (waitingForCooldown || !isCooledDown) {
+            return;
+        }
+
+        // If random delay hasn't elapsed yet, don't attack
+        long now = System.currentTimeMillis();
+        if (now < nextAttackTimeMs) {
             return;
         }
 
@@ -84,10 +130,34 @@ public class TriggerBotModule extends Module {
         // Send attack packet directly instead of using interactionManager
         sendAttackPacket(player, target);
         player.swingHand(Hand.MAIN_HAND);
+
+        // After attacking, reset: we need to wait for cooldown again
+        waitingForCooldown = true;
+        wasCooledDownLastTick = false;
     }
 
-    private boolean isAttackCooledDown(ClientPlayerEntity player) {
-        return player.getAttackCooldownProgress(0.0F) >= ATTACK_COOLDOWN_THRESHOLD;
+    /**
+     * Get a random delay in milliseconds based on the config.
+     * The delay is between 0 and triggerBotRandomDelayMs.
+     */
+    private double getRandomDelayMs() {
+        double maxDelay = ApexConfig.triggerBotRandomDelayMs;
+        if (maxDelay <= 0) {
+            return 0;
+        }
+        return Math.random() * maxDelay;
+    }
+
+    /**
+     * Get a hash representing the currently held item.
+     * Used to detect weapon swaps.
+     */
+    private int getHeldItemHash(ClientPlayerEntity player) {
+        ItemStack stack = player.getMainHandStack();
+        if (stack.isEmpty()) {
+            return 0;
+        }
+        return stack.getItem().hashCode();
     }
 
     private LivingEntity getTarget(MinecraftClient client, ClientPlayerEntity player) {
@@ -179,10 +249,16 @@ public class TriggerBotModule extends Module {
             return false;
         }
 
+        // AxeItem and SwordItem cover all vanilla axes/swords
         if (stack.getItem() instanceof AxeItem) {
             return true;
         }
 
+        if (stack.getItem() instanceof SwordItem) {
+            return true;
+        }
+
+        // Fallback: check specific items in case mods add custom weapons
         return stack.isOf(Items.WOODEN_SWORD)
                 || stack.isOf(Items.STONE_SWORD)
                 || stack.isOf(Items.IRON_SWORD)
