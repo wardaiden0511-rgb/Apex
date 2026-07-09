@@ -1,0 +1,24 @@
+# Gradle
+.gradle/
+build/
+bin/
+out/
+run/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Crash logs
+hs_err_pid*
+replay_pid*
+*.log
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Nested repos
+apex/
+apex-client/
