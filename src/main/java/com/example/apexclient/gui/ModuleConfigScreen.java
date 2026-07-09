@@ -12,25 +12,42 @@ import net.minecraft.text.Text;
 import org.lwjgl.glfw.GLFW;
 
 public class ModuleConfigScreen extends Screen {
-    private static final int PANEL_WIDTH = 420;
-    private static final int PANEL_HEIGHT = 360;
+    private static final int PANEL_WIDTH = 440;
+    private static final int PANEL_HEIGHT = 380;
 
-    private static final int COLOR_OVERLAY = 0xB8000000;
-    private static final int COLOR_OUTER = 0xFF070708;
-    private static final int COLOR_PANEL = 0xFF101013;
-    private static final int COLOR_HEADER = 0xFF1A0A0D;
-    private static final int COLOR_ROW = 0xFF17171C;
-    private static final int COLOR_ROW_HOVER = 0xFF21191D;
-
+    // ===== GLASSMORPHISM COLOR PALETTE =====
+    private static final int COLOR_OVERLAY = 0xC4000000;
+    private static final int COLOR_GLASS_GLOW_OUTER = 0x20FF334D;
+    private static final int COLOR_GLASS_GLOW_INNER = 0x12FF334D;
+    // Panel
+    private static final int COLOR_PANEL_BG = 0xF20D0D12;
+    private static final int COLOR_PANEL_BORDER = 0x28FF334D;
+    // Header
+    private static final int COLOR_HEADER_BG = 0xE81A080D;
+    private static final int COLOR_HEADER_LINE = 0xFFFF334D;
+    // Rows
+    private static final int COLOR_ROW_BG = 0xD814141A;
+    private static final int COLOR_ROW_HOVER = 0xE01E1A22;
+    private static final int COLOR_ROW_ACCENT = 0x30FF334D;
+    // Accents
     private static final int COLOR_RED = 0xFFFF334D;
     private static final int COLOR_RED_SOFT = 0xFFFF6A7A;
-    private static final int COLOR_RED_DARK = 0xFF6D111D;
+    private static final int COLOR_RED_DARK = 0xFF8B1A26;
+    private static final int COLOR_RED_GLOW = 0x20FF334D;
     private static final int COLOR_GREEN = 0xFF4DFF88;
-    private static final int COLOR_GREEN_DARK = 0xFF123F24;
-    private static final int COLOR_GLOW = 0x33FF334D;
-
-    private static final int COLOR_TEXT = 0xFFEDEDED;
-    private static final int COLOR_MUTED = 0xFF9A9AA2;
+    private static final int COLOR_GREEN_DARK = 0xFF1A4D2E;
+    private static final int COLOR_GREEN_GLOW = 0x204DFF88;
+    // Text
+    private static final int COLOR_TEXT = 0xFFF0F0F5;
+    private static final int COLOR_TEXT_DIM = 0xFFB0B0C0;
+    private static final int COLOR_TEXT_MUTED = 0xFF707080;
+    // Toggle
+    private static final int COLOR_TOGGLE_ON_BG = 0xFF1A4D2E;
+    private static final int COLOR_TOGGLE_OFF_BG = 0xFF3D1018;
+    // Slider
+    private static final int COLOR_SLIDER_TRACK = 0xFF2A2A32;
+    private static final int COLOR_SLIDER_FILL = 0xFFFF334D;
+    private static final int COLOR_SLIDER_KNOB = 0xFFFFE0E5;
 
     private static final int SLIDER_NONE = -1;
     private static final int SLIDER_AIM_SPEED = 0;
@@ -57,23 +74,30 @@ public class ModuleConfigScreen extends Screen {
         int panelX = getPanelX();
         int panelY = getPanelY();
 
+        // Dark overlay
         context.fill(0, 0, this.width, this.height, COLOR_OVERLAY);
 
-        // Glow effect with rounded corners
-        context.fill(panelX + 8, panelY + 8, panelX + PANEL_WIDTH + 8, panelY + PANEL_HEIGHT + 8, COLOR_GLOW);
-        context.fill(panelX + 6, panelY + 6, panelX + PANEL_WIDTH + 6, panelY + PANEL_HEIGHT + 6, 0x77000000);
-        drawRoundedRect(context, panelX, panelY, PANEL_WIDTH, PANEL_HEIGHT, 12, COLOR_OUTER);
-        drawRoundedRect(context, panelX + 1, panelY + 1, PANEL_WIDTH - 2, PANEL_HEIGHT - 2, 11, COLOR_PANEL);
+        // === GLASSMORPHISM PANEL ===
+        drawGlassGlow(context, panelX, panelY, PANEL_WIDTH, PANEL_HEIGHT);
+        drawRoundedRect(context, panelX, panelY, PANEL_WIDTH, PANEL_HEIGHT, 14, COLOR_PANEL_BG);
+        drawBorderGlow(context, panelX, panelY, PANEL_WIDTH, PANEL_HEIGHT, 14, COLOR_PANEL_BORDER);
 
-        // Header with rounded top corners
-        drawRoundedRect(context, panelX + 1, panelY + 1, PANEL_WIDTH - 2, 39, 10, COLOR_HEADER);
-        context.fill(panelX + 1, panelY + 40, panelX + PANEL_WIDTH - 1, panelY + 41, COLOR_RED);
+        // === HEADER ===
+        drawRoundedRectTop(context, panelX + 1, panelY + 1, PANEL_WIDTH - 2, 42, 12, COLOR_HEADER_BG);
+        context.fill(panelX + 1, panelY + 43, panelX + PANEL_WIDTH - 1, panelY + 44, COLOR_HEADER_LINE);
 
-        context.drawText(this.textRenderer, this.title, panelX + 26, panelY + 14, COLOR_TEXT, false);
-        context.drawText(this.textRenderer, "settings", panelX + PANEL_WIDTH - 108, panelY + 14, COLOR_MUTED, false);
+        // Title
+        context.drawText(this.textRenderer, this.title, panelX + 22, panelY + 15, COLOR_TEXT, false);
 
-        drawBackButton(context, mouseX, mouseY);
+        // Settings label
+        String settingsLabel = "settings";
+        int settingsWidth = this.textRenderer.getWidth(settingsLabel);
+        context.drawText(this.textRenderer, settingsLabel, panelX + PANEL_WIDTH - 60 - settingsWidth, panelY + 15, COLOR_TEXT_MUTED, false);
 
+        // Back button (glass pill)
+        drawBackButton(context, panelX, panelY, mouseX, mouseY);
+
+        // === MODULE SETTINGS ===
         if (isAimAssist()) {
             drawSlider(context, mouseX, mouseY, 0, "Aim Speed", ApexConfig.aimAssistSpeed,
                     ApexConfig.AIM_ASSIST_MIN_SPEED, ApexConfig.AIM_ASSIST_MAX_SPEED);
@@ -136,108 +160,170 @@ public class ModuleConfigScreen extends Screen {
         }
     }
 
-    private void drawBackButton(DrawContext context, int mouseX, int mouseY) {
-        int panelX = getPanelX();
-        int panelY = getPanelY();
+    // ===== GLASSMORPHISM EFFECTS =====
 
-        int backX = panelX + PANEL_WIDTH - 72;
-        int backY = panelY + 11;
-        boolean backHover = isInside(mouseX, mouseY, backX, backY, 54, 18);
-
-        drawRoundedRect(context, backX, backY, 54, 18, 6, backHover ? COLOR_RED_DARK : 0xFF251116);
-        context.drawText(this.textRenderer, "Back", backX + 14, backY + 5, backHover ? 0xFFFFFFFF : 0xFFFFA3AF, false);
+    private void drawGlassGlow(DrawContext context, int x, int y, int w, int h) {
+        for (int i = 5; i >= 1; i--) {
+            int alpha = 6 - i;
+            int glowColor = (alpha << 24) | 0xFF334D;
+            drawRoundedRect(context, x - i, y - i, w + i * 2, h + i * 2, 14 + i, glowColor);
+        }
+        drawRoundedRect(context, x + 1, y + 1, w - 2, h - 2, 13, COLOR_GLASS_GLOW_INNER);
     }
+
+    private void drawBorderGlow(DrawContext context, int x, int y, int w, int h, int radius, int color) {
+        int lineY = y + radius;
+        context.fill(x + radius, lineY, x + w - radius, lineY + 1, color);
+        context.fill(x + radius, lineY, x + radius + 1, y + h - radius, (0x15 << 24) | (color & 0xFFFFFF));
+    }
+
+    // ===== BACK BUTTON =====
+
+    private void drawBackButton(DrawContext context, int panelX, int panelY, int mouseX, int mouseY) {
+        int backX = panelX + PANEL_WIDTH - 76;
+        int backY = panelY + 12;
+        boolean backHover = isInside(mouseX, mouseY, backX, backY, 56, 20);
+
+        int backBg = backHover ? COLOR_RED_DARK : 0xFF1A0A0E;
+        drawRoundedRect(context, backX, backY, 56, 20, 8, backBg);
+
+        if (backHover) {
+            drawRoundedRect(context, backX - 1, backY - 1, 58, 22, 9, COLOR_RED_GLOW);
+            drawRoundedRect(context, backX, backY, 56, 20, 8, backBg);
+        }
+
+        int backTextColor = backHover ? 0xFFFFFFFF : COLOR_RED_SOFT;
+        context.drawText(this.textRenderer, "Back", backX + 16, backY + 6, backTextColor, false);
+    }
+
+    // ===== SLIDER =====
 
     private void drawSlider(DrawContext context, int mouseX, int mouseY, int index, String label, double value, double min, double max) {
         int panelX = getPanelX();
         int panelY = getPanelY();
 
-        int x = panelX + 18;
-        int y = panelY + 56 + index * 34;
-        int w = PANEL_WIDTH - 36;
-        int h = 28;
+        int x = panelX + 20;
+        int y = panelY + 60 + index * 36;
+        int w = PANEL_WIDTH - 40;
+        int h = 30;
 
         boolean hovered = isInside(mouseX, mouseY, x, y, w, h);
-        drawRoundedRect(context, x, y, w, h, 6, hovered ? COLOR_ROW_HOVER : COLOR_ROW);
-        drawRoundedRect(context, x, y, 3, h, 3, COLOR_RED);
 
+        // Row background
+        drawRoundedRect(context, x, y, w, h, 8, hovered ? COLOR_ROW_HOVER : COLOR_ROW_BG);
+
+        // Left accent
+        drawRoundedRect(context, x, y, 3, h, 2, COLOR_RED);
+        context.fill(x + 3, y + 4, x + 4, y + h - 4, COLOR_RED_GLOW);
+
+        // Label and value
         String valueText = String.format(java.util.Locale.US, "%.1f", value);
-        context.drawText(this.textRenderer, label, x + 12, y + 4, COLOR_TEXT, false);
-        context.drawText(this.textRenderer, valueText, x + w - 54, y + 4, 0xFFFFA3AF, false);
+        context.drawText(this.textRenderer, label, x + 14, y + 5, COLOR_TEXT, false);
 
-        int trackX = x + 12;
-        int trackY = y + h - 8;
-        int trackW = w - 24;
+        int valueWidth = this.textRenderer.getWidth(valueText);
+        context.drawText(this.textRenderer, valueText, x + w - 12 - valueWidth, y + 5, COLOR_RED_SOFT, false);
+
+        // Slider track
+        int trackX = x + 14;
+        int trackY = y + h - 9;
+        int trackW = w - 28;
         int trackH = 4;
 
         double normalized = (value - min) / (max - min);
         if (normalized < 0.0) normalized = 0.0;
         if (normalized > 1.0) normalized = 1.0;
 
-        context.fill(trackX, trackY, trackX + trackW, trackY + trackH, 0xFF2B2B30);
+        // Track background
+        drawRoundedRect(context, trackX, trackY, trackW, trackH, 2, COLOR_SLIDER_TRACK);
 
+        // Filled portion
         int filledW = (int) Math.round(trackW * normalized);
-        context.fill(trackX, trackY, trackX + filledW, trackY + trackH, COLOR_RED);
+        if (filledW > 0) {
+            drawRoundedRect(context, trackX, trackY, filledW, trackH, 2, COLOR_SLIDER_FILL);
+        }
 
-        int knobW = 8;
-        int knobH = 12;
-        int knobX = trackX + filledW - knobW / 2;
-        int knobY = trackY - 4;
-        context.fill(knobX, knobY, knobX + knobW, knobY + knobH, 0xFFFFCCD2);
+        // Knob
+        int knobSize = 10;
+        int knobX = trackX + filledW - knobSize / 2;
+        int knobY = trackY - 3;
+        drawRoundedRect(context, knobX - 1, knobY - 1, knobSize + 2, knobSize + 2, 5, COLOR_RED_GLOW);
+        drawRoundedRect(context, knobX, knobY, knobSize, knobSize, 4, COLOR_SLIDER_KNOB);
     }
+
+    // ===== TOGGLE =====
 
     private void drawToggle(DrawContext context, int mouseX, int mouseY, int index, String label, boolean enabled, String description) {
         int panelX = getPanelX();
         int panelY = getPanelY();
 
-        int x = panelX + 18;
-        int y = panelY + 56 + index * 34;
-        int w = PANEL_WIDTH - 36;
-        int h = 28;
+        int x = panelX + 20;
+        int y = panelY + 60 + index * 36;
+        int w = PANEL_WIDTH - 40;
+        int h = 30;
 
         boolean hovered = isInside(mouseX, mouseY, x, y, w, h);
         int stateColor = enabled ? COLOR_GREEN : COLOR_RED;
-        int stateDark = enabled ? COLOR_GREEN_DARK : COLOR_RED_DARK;
 
-        drawRoundedRect(context, x, y, w, h, 6, hovered ? COLOR_ROW_HOVER : COLOR_ROW);
-        drawRoundedRect(context, x, y, 3, h, 3, stateColor);
+        // Row background
+        drawRoundedRect(context, x, y, w, h, 8, hovered ? COLOR_ROW_HOVER : COLOR_ROW_BG);
+        drawRoundedRect(context, x, y, 3, h, 2, stateColor);
 
-        context.drawText(this.textRenderer, label, x + 12, y + 4, COLOR_TEXT, false);
-        context.drawText(this.textRenderer, description, x + 12, y + 17, COLOR_MUTED, false);
+        // Label and description
+        context.drawText(this.textRenderer, label, x + 14, y + 5, COLOR_TEXT, false);
+        context.drawText(this.textRenderer, description, x + 14, y + 18, COLOR_TEXT_MUTED, false);
 
-        int pillW = 54;
-        int pillH = 16;
-        int pillX = x + w - pillW - 10;
-        int pillY = y + 6;
+        // Modern toggle switch
+        drawModernToggle(context, x + w - 58, y + 4, enabled, hovered);
+    }
 
-        drawRoundedRect(context, pillX, pillY, pillW, pillH, 8, stateDark);
-        drawRoundedRect(context, pillX + 1, pillY + 1, pillW - 2, pillH - 2, 7, enabled ? 0xFF102A19 : 0xFF351017);
+    private void drawModernToggle(DrawContext context, int x, int y, boolean enabled, boolean hovered) {
+        int pillW = 52;
+        int pillH = 22;
 
-        int dot = 8;
-        int dotX = enabled ? pillX + pillW - dot - 5 : pillX + 5;
-        int dotY = pillY + 4;
-        context.fill(dotX, dotY, dotX + dot, dotY + dot, stateColor);
+        if (hovered) {
+            int glowColor = enabled ? COLOR_GREEN_GLOW : COLOR_RED_GLOW;
+            drawRoundedRect(context, x - 2, y - 2, pillW + 4, pillH + 4, 12, glowColor);
+        }
+
+        int pillBg = enabled ? COLOR_TOGGLE_ON_BG : COLOR_TOGGLE_OFF_BG;
+        drawRoundedRect(context, x, y, pillW, pillH, 11, pillBg);
+
+        int highlightColor = enabled ? 0xFF2D6B3E : 0xFF5D1A24;
+        drawRoundedRect(context, x + 1, y + 1, pillW - 2, pillH - 2, 10, highlightColor);
+
+        int dotSize = 14;
+        int dotX = enabled ? x + pillW - dotSize - 4 : x + 4;
+        int dotY = y + (pillH - dotSize) / 2;
+
+        int dotColor = enabled ? COLOR_GREEN : COLOR_RED;
+        int dotGlow = enabled ? COLOR_GREEN_GLOW : COLOR_RED_GLOW;
+        drawRoundedRect(context, dotX - 1, dotY - 1, dotSize + 2, dotSize + 2, 8, dotGlow);
+        drawRoundedRect(context, dotX, dotY, dotSize, dotSize, 7, dotColor);
 
         String stateText = enabled ? "ON" : "OFF";
-        int textX = enabled ? pillX + 10 : pillX + 22;
-        context.drawText(this.textRenderer, stateText, textX, pillY + 4, enabled ? 0xFFB9FFD0 : 0xFFFFA3AF, false);
+        int textX = enabled ? x + 8 : x + pillW - 22;
+        int textColor = enabled ? 0xFFB9FFD0 : 0xFFFFB3BD;
+        context.drawText(this.textRenderer, stateText, textX, y + 7, textColor, false);
     }
+
+    // ===== BIND ROW =====
 
     private void drawBindRow(DrawContext context, int mouseX, int mouseY, int index) {
         int panelX = getPanelX();
         int panelY = getPanelY();
 
-        int x = panelX + 18;
-        int y = panelY + 56 + index * 34;
-        int w = PANEL_WIDTH - 36;
-        int h = 28;
+        int x = panelX + 20;
+        int y = panelY + 60 + index * 36;
+        int w = PANEL_WIDTH - 40;
+        int h = 30;
 
         boolean hovered = isInside(mouseX, mouseY, x, y, w, h);
+        int accentColor = waitingForBind ? COLOR_GREEN : COLOR_RED;
 
-        drawRoundedRect(context, x, y, w, h, 6, hovered ? COLOR_ROW_HOVER : COLOR_ROW);
-        drawRoundedRect(context, x, y, 3, h, 3, waitingForBind ? COLOR_GREEN : COLOR_RED);
+        drawRoundedRect(context, x, y, w, h, 8, hovered ? COLOR_ROW_HOVER : COLOR_ROW_BG);
+        drawRoundedRect(context, x, y, 3, h, 2, accentColor);
 
-        context.drawText(this.textRenderer, "Bind", x + 12, y + 4, COLOR_TEXT, false);
+        context.drawText(this.textRenderer, "Bind", x + 14, y + 5, COLOR_TEXT, false);
 
         String bindText;
         if (waitingForBind) {
@@ -246,24 +332,29 @@ public class ModuleConfigScreen extends Screen {
             bindText = "Current: " + KeyBindManager.getBindName(module) + "  |  Click to change";
         }
 
-        context.drawText(this.textRenderer, bindText, x + 12, y + 17, waitingForBind ? 0xFFB9FFD0 : COLOR_MUTED, false);
+        context.drawText(this.textRenderer, bindText, x + 14, y + 18,
+                waitingForBind ? 0xFFB9FFD0 : COLOR_TEXT_MUTED, false);
     }
+
+    // ===== INFO ROW =====
 
     private void drawInfoRow(DrawContext context, int mouseX, int mouseY, int index, String label, String description) {
         int panelX = getPanelX();
         int panelY = getPanelY();
 
-        int x = panelX + 18;
-        int y = panelY + 56 + index * 34;
-        int w = PANEL_WIDTH - 36;
-        int h = 28;
+        int x = panelX + 20;
+        int y = panelY + 60 + index * 36;
+        int w = PANEL_WIDTH - 40;
+        int h = 30;
 
         boolean hovered = isInside(mouseX, mouseY, x, y, w, h);
-        drawRoundedRect(context, x, y, w, h, 6, hovered ? COLOR_ROW_HOVER : COLOR_ROW);
-        drawRoundedRect(context, x, y, 3, h, 3, COLOR_RED_DARK);
-        context.drawText(this.textRenderer, label, x + 12, y + 4, COLOR_TEXT, false);
-        context.drawText(this.textRenderer, description, x + 12, y + 17, COLOR_MUTED, false);
+        drawRoundedRect(context, x, y, w, h, 8, hovered ? COLOR_ROW_HOVER : COLOR_ROW_BG);
+        drawRoundedRect(context, x, y, 3, h, 2, COLOR_RED_DARK);
+        context.drawText(this.textRenderer, label, x + 14, y + 5, COLOR_TEXT, false);
+        context.drawText(this.textRenderer, description, x + 14, y + 18, COLOR_TEXT_MUTED, false);
     }
+
+    // ===== INPUT HANDLING =====
 
     @Override
     public boolean mouseClicked(Click click, boolean doubled) {
@@ -278,7 +369,8 @@ public class ModuleConfigScreen extends Screen {
         int panelX = getPanelX();
         int panelY = getPanelY();
 
-        if (isInside(mouseX, mouseY, panelX + PANEL_WIDTH - 72, panelY + 11, 54, 18)) {
+        // Back button
+        if (isInside(mouseX, mouseY, panelX + PANEL_WIDTH - 76, panelY + 12, 56, 20)) {
             if (this.client != null) {
                 this.client.setScreen(new com.example.apexclient.ApexScreen());
             }
@@ -326,42 +418,34 @@ public class ModuleConfigScreen extends Screen {
             updateSliderFromMouse(click.x(), ApexConfig.AIM_ASSIST_MIN_SPEED, ApexConfig.AIM_ASSIST_MAX_SPEED, SLIDER_AIM_SPEED);
             return true;
         }
-
         if (draggingSlider == SLIDER_AIM_RANGE) {
             updateSliderFromMouse(click.x(), ApexConfig.AIM_ASSIST_MIN_RANGE, ApexConfig.AIM_ASSIST_MAX_RANGE, SLIDER_AIM_RANGE);
             return true;
         }
-
         if (draggingSlider == SLIDER_SHIELD_DELAY) {
             updateSliderFromMouse(click.x(), ApexConfig.SHIELD_STUN_MIN_DELAY_MS, ApexConfig.SHIELD_STUN_MAX_DELAY_MS, SLIDER_SHIELD_DELAY);
             return true;
         }
-
         if (draggingSlider == SLIDER_AUTO_DRAIN_RANGE) {
             updateSliderFromMouse(click.x(), ApexConfig.AUTO_DRAIN_MIN_RANGE, ApexConfig.AUTO_DRAIN_MAX_RANGE, SLIDER_AUTO_DRAIN_RANGE);
             return true;
         }
-
         if (draggingSlider == SLIDER_TRIGGER_RANDOM_DELAY) {
             updateSliderFromMouse(click.x(), ApexConfig.TRIGGER_BOT_MIN_RANDOM_DELAY_MS, ApexConfig.TRIGGER_BOT_MAX_RANDOM_DELAY_MS, SLIDER_TRIGGER_RANDOM_DELAY);
             return true;
         }
-
         if (draggingSlider == SLIDER_PRESSURE_WEB_DELAY) {
             updateSliderFromMouse(click.x(), ApexConfig.PRESSURE_WEB_MIN_DELAY_TICKS, ApexConfig.PRESSURE_WEB_MAX_DELAY_TICKS, SLIDER_PRESSURE_WEB_DELAY);
             return true;
         }
-
         if (draggingSlider == SLIDER_PRESSURE_WEB_SWAP_SPEED) {
             updateSliderFromMouse(click.x(), ApexConfig.PRESSURE_WEB_MIN_SWAP_SPEED_TICKS, ApexConfig.PRESSURE_WEB_MAX_SWAP_SPEED_TICKS, SLIDER_PRESSURE_WEB_SWAP_SPEED);
             return true;
         }
-
         if (draggingSlider == SLIDER_STUN_SLAM_SWAP_DELAY) {
             updateSliderFromMouse(click.x(), ApexConfig.STUN_SLAM_MIN_SWAP_DELAY_TICKS, ApexConfig.STUN_SLAM_MAX_SWAP_DELAY_TICKS, SLIDER_STUN_SLAM_SWAP_DELAY);
             return true;
         }
-
         return super.mouseDragged(click, offsetX, offsetY);
     }
 
@@ -383,7 +467,6 @@ public class ModuleConfigScreen extends Screen {
 
             KeyBindManager.updateBind(module);
             ConfigManager.save();
-
             waitingForBind = false;
             return true;
         }
@@ -391,14 +474,16 @@ public class ModuleConfigScreen extends Screen {
         return super.keyPressed(input);
     }
 
+    // ===== CLICK HANDLERS =====
+
     private boolean startSliderDrag(double mouseX, double mouseY, int rowIndex, int sliderType) {
         int panelX = getPanelX();
         int panelY = getPanelY();
 
-        int x = panelX + 18;
-        int y = panelY + 56 + rowIndex * 34;
-        int w = PANEL_WIDTH - 36;
-        int h = 28;
+        int x = panelX + 20;
+        int y = panelY + 60 + rowIndex * 36;
+        int w = PANEL_WIDTH - 40;
+        int h = 30;
 
         if (!isInside(mouseX, mouseY, x, y, w, h)) {
             return false;
@@ -430,10 +515,10 @@ public class ModuleConfigScreen extends Screen {
     private void updateSliderFromMouse(double mouseX, double min, double max, int sliderType) {
         int panelX = getPanelX();
 
-        int x = panelX + 18;
-        int w = PANEL_WIDTH - 36;
-        int trackX = x + 12;
-        int trackW = w - 24;
+        int x = panelX + 20;
+        int w = PANEL_WIDTH - 40;
+        int trackX = x + 14;
+        int trackW = w - 28;
 
         double normalized = (mouseX - trackX) / (double) trackW;
         if (normalized < 0.0) normalized = 0.0;
@@ -464,99 +549,48 @@ public class ModuleConfigScreen extends Screen {
     }
 
     private boolean handleAimToggleClick(double mouseX, double mouseY, int index, boolean throughWallsToggle) {
-        int panelX = getPanelX();
-        int panelY = getPanelY();
-
-        int x = panelX + 18;
-        int y = panelY + 56 + index * 34;
-        int w = PANEL_WIDTH - 36;
-        int h = 28;
-
-        if (!isInside(mouseX, mouseY, x, y, w, h)) {
+        if (!isInside(mouseX, mouseY, getPanelX() + 20, getPanelY() + 60 + index * 36, PANEL_WIDTH - 40, 30)) {
             return false;
         }
-
         draggingSlider = SLIDER_NONE;
-
         if (throughWallsToggle) {
             ApexConfig.aimAssistThroughWalls = !ApexConfig.aimAssistThroughWalls;
         } else {
             ApexConfig.aimAssistVertical = !ApexConfig.aimAssistVertical;
         }
-
         ConfigManager.save();
         return true;
     }
 
     private boolean handleAutoDrainToggleClick(double mouseX, double mouseY, int index, int mode) {
-        int panelX = getPanelX();
-        int panelY = getPanelY();
-
-        int x = panelX + 18;
-        int y = panelY + 56 + index * 34;
-        int w = PANEL_WIDTH - 36;
-        int h = 28;
-
-        if (!isInside(mouseX, mouseY, x, y, w, h)) {
+        if (!isInside(mouseX, mouseY, getPanelX() + 20, getPanelY() + 60 + index * 36, PANEL_WIDTH - 40, 30)) {
             return false;
         }
-
         draggingSlider = SLIDER_NONE;
-
-        if (mode == 0) {
-            ApexConfig.autoDrainWeb = !ApexConfig.autoDrainWeb;
-        } else if (mode == 1) {
-            ApexConfig.autoDrainBlock = !ApexConfig.autoDrainBlock;
-        } else if (mode == 2) {
-            ApexConfig.autoDrainBucket = !ApexConfig.autoDrainBucket;
-        }
-
+        if (mode == 0) ApexConfig.autoDrainWeb = !ApexConfig.autoDrainWeb;
+        else if (mode == 1) ApexConfig.autoDrainBlock = !ApexConfig.autoDrainBlock;
+        else if (mode == 2) ApexConfig.autoDrainBucket = !ApexConfig.autoDrainBucket;
         ConfigManager.save();
         return true;
     }
 
     private boolean handleTriggerToggleClick(double mouseX, double mouseY, int index, int mode) {
-        int panelX = getPanelX();
-        int panelY = getPanelY();
-
-        int x = panelX + 18;
-        int y = panelY + 56 + index * 34;
-        int w = PANEL_WIDTH - 36;
-        int h = 28;
-
-        if (!isInside(mouseX, mouseY, x, y, w, h)) {
+        if (!isInside(mouseX, mouseY, getPanelX() + 20, getPanelY() + 60 + index * 36, PANEL_WIDTH - 40, 30)) {
             return false;
         }
-
         draggingSlider = SLIDER_NONE;
-
-        if (mode == 0) {
-            ApexConfig.triggerBotPlayersOnly = !ApexConfig.triggerBotPlayersOnly;
-        } else if (mode == 1) {
-            ApexConfig.triggerBotWeaponOnly = !ApexConfig.triggerBotWeaponOnly;
-        } else if (mode == 2) {
-            ApexConfig.triggerBotRequireVisible = !ApexConfig.triggerBotRequireVisible;
-        } else if (mode == 3) {
-            ApexConfig.triggerBotRequireCrosshair = !ApexConfig.triggerBotRequireCrosshair;
-        }
-
+        if (mode == 0) ApexConfig.triggerBotPlayersOnly = !ApexConfig.triggerBotPlayersOnly;
+        else if (mode == 1) ApexConfig.triggerBotWeaponOnly = !ApexConfig.triggerBotWeaponOnly;
+        else if (mode == 2) ApexConfig.triggerBotRequireVisible = !ApexConfig.triggerBotRequireVisible;
+        else if (mode == 3) ApexConfig.triggerBotRequireCrosshair = !ApexConfig.triggerBotRequireCrosshair;
         ConfigManager.save();
         return true;
     }
 
     private boolean handlePressureWebToggleClick(double mouseX, double mouseY, int index) {
-        int panelX = getPanelX();
-        int panelY = getPanelY();
-
-        int x = panelX + 18;
-        int y = panelY + 56 + index * 34;
-        int w = PANEL_WIDTH - 36;
-        int h = 28;
-
-        if (!isInside(mouseX, mouseY, x, y, w, h)) {
+        if (!isInside(mouseX, mouseY, getPanelX() + 20, getPanelY() + 60 + index * 36, PANEL_WIDTH - 40, 30)) {
             return false;
         }
-
         draggingSlider = SLIDER_NONE;
         ApexConfig.pressureWebEnabled = !ApexConfig.pressureWebEnabled;
         ConfigManager.save();
@@ -564,22 +598,15 @@ public class ModuleConfigScreen extends Screen {
     }
 
     private boolean handleBindRowClick(double mouseX, double mouseY, int index) {
-        int panelX = getPanelX();
-        int panelY = getPanelY();
-
-        int x = panelX + 18;
-        int y = panelY + 56 + index * 34;
-        int w = PANEL_WIDTH - 36;
-        int h = 28;
-
-        if (!isInside(mouseX, mouseY, x, y, w, h)) {
+        if (!isInside(mouseX, mouseY, getPanelX() + 20, getPanelY() + 60 + index * 36, PANEL_WIDTH - 40, 30)) {
             return false;
         }
-
         draggingSlider = SLIDER_NONE;
         waitingForBind = true;
         return true;
     }
+
+    // ===== MODULE TYPE CHECKS =====
 
     private boolean isAimAssist() {
         return module != null && module.getName().equalsIgnoreCase("Aim Assist");
@@ -610,6 +637,8 @@ public class ModuleConfigScreen extends Screen {
         return false;
     }
 
+    // ===== HELPERS =====
+
     private int getPanelX() {
         return (this.width - PANEL_WIDTH) / 2;
     }
@@ -622,31 +651,31 @@ public class ModuleConfigScreen extends Screen {
         return mouseX >= x && mouseX < x + w && mouseY >= y && mouseY < y + h;
     }
 
+    // ===== ROUNDED RECTANGLE DRAWING =====
+
     private void drawRoundedRect(DrawContext context, int x, int y, int width, int height, int radius, int color) {
-        // Draw center
         context.fill(x + radius, y, x + width - radius, y + height, color);
-
-        // Draw top and bottom strips
         context.fill(x, y + radius, x + width, y + height - radius, color);
-
-        // Draw corners
         for (int i = 0; i < radius; i++) {
             for (int j = 0; j < radius; j++) {
-                // Top-left
                 if (i * i + j * j <= radius * radius) {
                     context.fill(x + i, y + j, x + i + 1, y + j + 1, color);
-                }
-                // Top-right
-                if (i * i + j * j <= radius * radius) {
                     context.fill(x + width - radius + i, y + j, x + width - radius + i + 1, y + j + 1, color);
-                }
-                // Bottom-left
-                if (i * i + j * j <= radius * radius) {
                     context.fill(x + i, y + height - radius + j, x + i + 1, y + height - radius + j + 1, color);
-                }
-                // Bottom-right
-                if (i * i + j * j <= radius * radius) {
                     context.fill(x + width - radius + i, y + height - radius + j, x + width - radius + i + 1, y + height - radius + j + 1, color);
+                }
+            }
+        }
+    }
+
+    private void drawRoundedRectTop(DrawContext context, int x, int y, int width, int height, int radius, int color) {
+        context.fill(x + radius, y, x + width - radius, y + height, color);
+        context.fill(x, y + radius, x + width, y + height, color);
+        for (int i = 0; i < radius; i++) {
+            for (int j = 0; j < radius; j++) {
+                if (i * i + j * j <= radius * radius) {
+                    context.fill(x + i, y + j, x + i + 1, y + j + 1, color);
+                    context.fill(x + width - radius + i, y + j, x + width - radius + i + 1, y + j + 1, color);
                 }
             }
         }
