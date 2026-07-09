@@ -61,6 +61,17 @@ public class ConfigManager {
         general.addProperty("triggerBotRequireVisible", ApexConfig.triggerBotRequireVisible);
         general.addProperty("triggerBotRequireCrosshair", ApexConfig.triggerBotRequireCrosshair);
 
+        // Pressure Web
+        general.addProperty("pressureWebEnabled", ApexConfig.pressureWebEnabled);
+        general.addProperty("pressureWebDelayTicks", ApexConfig.clampPressureWebDelayTicks(ApexConfig.pressureWebDelayTicks));
+        general.addProperty("pressureWebSwapSpeedTicks", ApexConfig.clampPressureWebSwapSpeedTicks(ApexConfig.pressureWebSwapSpeedTicks));
+
+        // Stun Slam
+        general.addProperty("stunSlamSwapDelayTicks", ApexConfig.clampStunSlamSwapDelayTicks(ApexConfig.stunSlamSwapDelayTicks));
+        general.addProperty("stunSlamAttackSpeedTicks", ApexConfig.clampStunSlamAttackSpeedTicks(ApexConfig.stunSlamAttackSpeedTicks));
+        general.addProperty("stunSlamHorizontalDistance", ApexConfig.clampStunSlamHorizontalDistance(ApexConfig.stunSlamHorizontalDistance));
+        general.addProperty("stunSlamFallDistance", ApexConfig.clampStunSlamFallDistance(ApexConfig.stunSlamFallDistance));
+
         root.add("general", general);
 
         JsonArray modules = new JsonArray();
@@ -160,7 +171,7 @@ public class ConfigManager {
                 ApexConfig.autoDrainRange = general.get("autoDrainRange").getAsDouble();
             }
 
-            // Triggerbot: old triggerBotDelayMs / triggerBotRandomDelay are intentionally ignored now.
+            // Triggerbot
             if (general.has("triggerBotRandomDelayMs")) {
                 ApexConfig.triggerBotRandomDelayMs = general.get("triggerBotRandomDelayMs").getAsDouble();
             }
@@ -179,6 +190,36 @@ public class ConfigManager {
 
             if (general.has("triggerBotRequireCrosshair")) {
                 ApexConfig.triggerBotRequireCrosshair = general.get("triggerBotRequireCrosshair").getAsBoolean();
+            }
+
+            // Pressure Web
+            if (general.has("pressureWebEnabled")) {
+                ApexConfig.pressureWebEnabled = general.get("pressureWebEnabled").getAsBoolean();
+            }
+
+            if (general.has("pressureWebDelayTicks")) {
+                ApexConfig.pressureWebDelayTicks = general.get("pressureWebDelayTicks").getAsDouble();
+            }
+
+            if (general.has("pressureWebSwapSpeedTicks")) {
+                ApexConfig.pressureWebSwapSpeedTicks = general.get("pressureWebSwapSpeedTicks").getAsDouble();
+            }
+
+            // Stun Slam
+            if (general.has("stunSlamSwapDelayTicks")) {
+                ApexConfig.stunSlamSwapDelayTicks = general.get("stunSlamSwapDelayTicks").getAsDouble();
+            }
+
+            if (general.has("stunSlamAttackSpeedTicks")) {
+                ApexConfig.stunSlamAttackSpeedTicks = general.get("stunSlamAttackSpeedTicks").getAsDouble();
+            }
+
+            if (general.has("stunSlamHorizontalDistance")) {
+                ApexConfig.stunSlamHorizontalDistance = general.get("stunSlamHorizontalDistance").getAsDouble();
+            }
+
+            if (general.has("stunSlamFallDistance")) {
+                ApexConfig.stunSlamFallDistance = general.get("stunSlamFallDistance").getAsDouble();
             }
         }
     }
@@ -275,6 +316,36 @@ public class ConfigManager {
                 if (settings.has("triggerBotRequireCrosshair")) {
                     ApexConfig.triggerBotRequireCrosshair = settings.get("triggerBotRequireCrosshair").getAsBoolean();
                 }
+
+                // Pressure Web migration
+                if (settings.has("pressureWebEnabled")) {
+                    ApexConfig.pressureWebEnabled = settings.get("pressureWebEnabled").getAsBoolean();
+                }
+
+                if (settings.has("pressureWebDelayTicks")) {
+                    ApexConfig.pressureWebDelayTicks = settings.get("pressureWebDelayTicks").getAsDouble();
+                }
+
+                if (settings.has("pressureWebSwapSpeedTicks")) {
+                    ApexConfig.pressureWebSwapSpeedTicks = settings.get("pressureWebSwapSpeedTicks").getAsDouble();
+                }
+
+                // Stun Slam migration
+                if (settings.has("stunSlamSwapDelayTicks")) {
+                    ApexConfig.stunSlamSwapDelayTicks = settings.get("stunSlamSwapDelayTicks").getAsDouble();
+                }
+
+                if (settings.has("stunSlamAttackSpeedTicks")) {
+                    ApexConfig.stunSlamAttackSpeedTicks = settings.get("stunSlamAttackSpeedTicks").getAsDouble();
+                }
+
+                if (settings.has("stunSlamHorizontalDistance")) {
+                    ApexConfig.stunSlamHorizontalDistance = settings.get("stunSlamHorizontalDistance").getAsDouble();
+                }
+
+                if (settings.has("stunSlamFallDistance")) {
+                    ApexConfig.stunSlamFallDistance = settings.get("stunSlamFallDistance").getAsDouble();
+                }
             }
         }
     }
@@ -285,5 +356,11 @@ public class ConfigManager {
         ApexConfig.shieldStunDelayMs = ApexConfig.clampShieldStunDelayMs(ApexConfig.shieldStunDelayMs);
         ApexConfig.autoDrainRange = ApexConfig.clampAutoDrainRange(ApexConfig.autoDrainRange);
         ApexConfig.triggerBotRandomDelayMs = ApexConfig.clampTriggerBotRandomDelayMs(ApexConfig.triggerBotRandomDelayMs);
+        ApexConfig.pressureWebDelayTicks = ApexConfig.clampPressureWebDelayTicks(ApexConfig.pressureWebDelayTicks);
+        ApexConfig.pressureWebSwapSpeedTicks = ApexConfig.clampPressureWebSwapSpeedTicks(ApexConfig.pressureWebSwapSpeedTicks);
+        ApexConfig.stunSlamSwapDelayTicks = ApexConfig.clampStunSlamSwapDelayTicks(ApexConfig.stunSlamSwapDelayTicks);
+        ApexConfig.stunSlamAttackSpeedTicks = ApexConfig.clampStunSlamAttackSpeedTicks(ApexConfig.stunSlamAttackSpeedTicks);
+        ApexConfig.stunSlamHorizontalDistance = ApexConfig.clampStunSlamHorizontalDistance(ApexConfig.stunSlamHorizontalDistance);
+        ApexConfig.stunSlamFallDistance = ApexConfig.clampStunSlamFallDistance(ApexConfig.stunSlamFallDistance);
     }
 }
