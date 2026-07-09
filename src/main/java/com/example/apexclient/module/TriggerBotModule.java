@@ -28,7 +28,7 @@ public class TriggerBotModule extends Module {
      */
     private static final float ATTACK_COOLDOWN_THRESHOLD = 1.0F;
 
-    private LivingEntity lastDetectedTarget = null;
+    private long nextAttackTimeMs = 0L;
 
     public TriggerBotModule() {
         super("Triggerbot");
@@ -36,12 +36,12 @@ public class TriggerBotModule extends Module {
 
     @Override
     protected void onEnable() {
-        lastDetectedTarget = null;
+        nextAttackTimeMs = 0L;
     }
 
     @Override
     protected void onDisable() {
-        lastDetectedTarget = null;
+        nextAttackTimeMs = 0L;
     }
 
     @Override
@@ -51,39 +51,46 @@ public class TriggerBotModule extends Module {
         }
 
         if (client == null || client.player == null || client.world == null || client.interactionManager == null) {
-            lastDetectedTarget = null;
             return;
         }
 
         ClientPlayerEntity player = client.player;
 
         if (ApexConfig.triggerBotWeaponOnly && !isHoldingWeapon(player)) {
-            lastDetectedTarget = null;
             return;
         }
 
         // Respect vanilla cooldown first.
-        // Sword/axe cooldown differences are handled by Minecraft here.
         if (!isAttackCooledDown(player)) {
+            return;
+        }
+
+        // Check random delay - add human-like variation between attacks
+        long now = System.currentTimeMillis();
+        if (now < nextAttackTimeMs) {
             return;
         }
 
         LivingEntity target = getTarget(client, player);
         if (target == null || !isValidTarget(player, target)) {
-            lastDetectedTarget = null;
             return;
         }
 
-        // Only attack if target changed (prevents spamming same target)
-        if (lastDetectedTarget == target) {
-            return;
-        }
-
-        lastDetectedTarget = target;
+        // Schedule next attack with random delay for humanization
+        scheduleNextAttack();
 
         // Send attack packet directly instead of using interactionManager
         sendAttackPacket(player, target);
         player.swingHand(Hand.MAIN_HAND);
+    }
+
+    private void scheduleNextAttack() {
+        double randomDelayMs = ApexConfig.triggerBotRandomDelayMs;
+        if (randomDelayMs > 0) {
+            // Add 0-100% of configured random delay
+            long jitter = (long) (Math.random() * randomDelayMs);
+            nextAttackTimeMs = System.currentTimeMillis() + jitter;
+        }
     }
 
     private boolean isAttackCooledDown(ClientPlayerEntity player) {

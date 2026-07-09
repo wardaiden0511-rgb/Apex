@@ -7,7 +7,9 @@ import com.example.apexclient.module.ModuleManager;
 import net.minecraft.client.gui.Click;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
+import net.minecraft.client.input.KeyInput;
 import net.minecraft.text.Text;
+import org.lwjgl.glfw.GLFW;
 
 import java.util.List;
 
@@ -39,7 +41,9 @@ public class ApexScreen extends Screen {
     private static final String[] CATEGORIES = {"Combat", "Utility", "Visual", "All"};
     private int selectedCategory = 0;
     private String searchQuery = "";
+    private boolean searchFocused = false;
     private int scrollOffset = 0;
+    private int searchCursorTicks = 0;
 
     public ApexScreen() {
         super(Text.of("Apex Client"));
@@ -47,7 +51,7 @@ public class ApexScreen extends Screen {
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        // Do NOT call renderBackground(...) on 1.21.11.
+        searchCursorTicks++;
 
         int panelX = getPanelX();
         int panelY = getPanelY();
@@ -86,11 +90,16 @@ public class ApexScreen extends Screen {
         // Draw search bar.
         drawSearchBar(context, mouseX, mouseY, panelX, panelY);
 
-        // Draw navigation at bottom.
-        drawNavigation(context, mouseX, mouseY, panelX, panelY);
-
         // Draw module rows.
         drawModuleRows(context, mouseX, mouseY, panelX, panelY);
+
+        // Draw module count at bottom.
+        int enabledCount = 0;
+        for (Module m : ModuleManager.getModules()) {
+            if (m.isEnabled()) enabledCount++;
+        }
+        String countText = enabledCount + "/" + ModuleManager.getModules().size() + " active";
+        context.drawText(this.textRenderer, countText, panelX + SIDEBAR_WIDTH + 16, panelY + PANEL_HEIGHT - 22, COLOR_MUTED, false);
     }
 
     private void drawCategories(DrawContext context, int mouseX, int mouseY, int panelX, int panelY) {
@@ -122,26 +131,29 @@ public class ApexScreen extends Screen {
         int searchH = 24;
 
         boolean isHovered = isInside(mouseX, mouseY, searchX, searchY, searchW, searchH);
-        drawRoundedRect(context, searchX, searchY, searchW, searchH, 6, isHovered ? COLOR_ROW_HOVER : COLOR_ROW);
+        int bgColor = searchFocused ? COLOR_ROW_HOVER : (isHovered ? COLOR_ROW_HOVER : COLOR_ROW);
+        int borderColor = searchFocused ? COLOR_RED : 0xFF2A2A30;
 
-        String searchText = searchQuery.isEmpty() ? "Search modules..." : searchQuery;
-        context.drawText(this.textRenderer, searchText, searchX + 8, searchY + 6, searchQuery.isEmpty() ? COLOR_MUTED : COLOR_TEXT, false);
-    }
+        // Border
+        drawRoundedRect(context, searchX - 1, searchY - 1, searchW + 2, searchH + 2, 7, borderColor);
+        drawRoundedRect(context, searchX, searchY, searchW, searchH, 6, bgColor);
 
-    private void drawNavigation(DrawContext context, int mouseX, int mouseY, int panelX, int panelY) {
-        String[] navItems = {"Home", "Modules", "Settings"};
-        int navY = panelY + PANEL_HEIGHT - 30;
-        int navItemW = (SIDEBAR_WIDTH - 12) / navItems.length;
+        String displayText = searchQuery.isEmpty() && !searchFocused ? "Search modules..." : searchQuery;
+        int textColor = searchQuery.isEmpty() && !searchFocused ? COLOR_MUTED : COLOR_TEXT;
+        context.drawText(this.textRenderer, displayText, searchX + 8, searchY + 6, textColor, false);
 
-        for (int i = 0; i < navItems.length; i++) {
-            int navX = panelX + 6 + i * navItemW;
-            boolean isHovered = isInside(mouseX, mouseY, navX, navY, navItemW, 24);
+        // Draw cursor if focused and query not empty
+        if (searchFocused && searchCursorTicks % 40 < 20) {
+            int textWidth = this.textRenderer.getWidth(searchQuery);
+            context.fill(searchX + 8 + textWidth, searchY + 5, searchX + 8 + textWidth + 1, searchY + 17, COLOR_RED_SOFT);
+        }
 
-            if (isHovered) {
-                context.fill(navX, navY, navX + navItemW, navY + 24, COLOR_SIDEBAR_HOVER);
-            }
-
-            context.drawText(this.textRenderer, navItems[i], navX + (navItemW - this.textRenderer.getWidth(navItems[i])) / 2, navY + 8, COLOR_MUTED, false);
+        // Clear button when search has text
+        if (!searchQuery.isEmpty()) {
+            int clearX = searchX + searchW - 18;
+            int clearY = searchY + 5;
+            boolean clearHover = isInside(mouseX, mouseY, clearX, clearY, 14, 14);
+            context.drawText(this.textRenderer, "x", clearX + 4, clearY + 1, clearHover ? COLOR_RED : COLOR_MUTED, false);
         }
     }
 
@@ -163,6 +175,12 @@ public class ApexScreen extends Screen {
 
         // Clamp scroll offset
         scrollOffset = Math.max(0, Math.min(scrollOffset, maxScrollOffset));
+
+        // Show result count when searching
+        if (!searchQuery.isEmpty()) {
+            String resultText = modules.size() + " result" + (modules.size() != 1 ? "s" : "");
+            context.drawText(this.textRenderer, resultText, contentX + rowW - 60, panelY + 72, COLOR_MUTED, false);
+        }
 
         for (int i = 0; i < modules.size(); i++) {
             Module module = modules.get(i);
@@ -209,7 +227,7 @@ public class ApexScreen extends Screen {
             // Gear box with rounded corners.
             int gearX = contentX + rowW + 7;
             drawRoundedRect(context, gearX, y, gearW, rowH, 8, gearHover ? COLOR_RED_DARK : 0xFF211116);
-            context.drawText(this.textRenderer, "⚙", gearX + 9, y + 16, gearHover ? 0xFFFFFFFF : 0xFFFFA3AF, false);
+            context.drawText(this.textRenderer, "\u2699", gearX + 9, y + 16, gearHover ? 0xFFFFFFFF : 0xFFFFA3AF, false);
         }
     }
 
@@ -221,6 +239,28 @@ public class ApexScreen extends Screen {
 
         int panelX = getPanelX();
         int panelY = getPanelY();
+
+        // Search bar focus handling
+        int searchX = panelX + SIDEBAR_WIDTH + 16;
+        int searchY = panelY + 50;
+        int searchW = PANEL_WIDTH - SIDEBAR_WIDTH - 32;
+        int searchH = 24;
+
+        // Clear button
+        if (!searchQuery.isEmpty() && isInside(mouseX, mouseY, searchX + searchW - 18, searchY + 5, 14, 14)) {
+            searchQuery = "";
+            searchFocused = false;
+            scrollOffset = 0;
+            return true;
+        }
+
+        // Search bar click
+        if (isInside(mouseX, mouseY, searchX, searchY, searchW, searchH)) {
+            searchFocused = true;
+            return true;
+        } else {
+            searchFocused = false;
+        }
 
         // Done button.
         if (isInside(mouseX, mouseY, panelX + PANEL_WIDTH - 72, panelY + 11, 54, 18)) {
@@ -239,28 +279,7 @@ public class ApexScreen extends Screen {
             int catW = SIDEBAR_WIDTH - 12;
             if (isInside(mouseX, mouseY, catX, catY, catW, categoryHeight)) {
                 selectedCategory = i;
-                return true;
-            }
-        }
-
-        // Handle search bar click (placeholder for now).
-        int searchX = panelX + SIDEBAR_WIDTH + 16;
-        int searchY = panelY + 50;
-        int searchW = PANEL_WIDTH - SIDEBAR_WIDTH - 32;
-        int searchH = 24;
-        if (isInside(mouseX, mouseY, searchX, searchY, searchW, searchH)) {
-            // Search bar clicked - could add typing support later
-            return true;
-        }
-
-        // Handle navigation clicks.
-        String[] navItems = {"Home", "Modules", "Settings"};
-        int navY = panelY + PANEL_HEIGHT - 30;
-        int navItemW = (SIDEBAR_WIDTH - 12) / navItems.length;
-        for (int i = 0; i < navItems.length; i++) {
-            int navX = panelX + 6 + i * navItemW;
-            if (isInside(mouseX, mouseY, navX, navY, navItemW, 24)) {
-                // Navigation clicked - could add different screens later
+                scrollOffset = 0;
                 return true;
             }
         }
@@ -307,11 +326,84 @@ public class ApexScreen extends Screen {
     }
 
     @Override
+    public boolean keyPressed(KeyInput input) {
+        // Handle search input
+        if (searchFocused) {
+            int key = input.key();
+
+            if (key == GLFW.GLFW_KEY_ESCAPE) {
+                searchFocused = false;
+                return true;
+            }
+
+            if (key == GLFW.GLFW_KEY_BACKSPACE) {
+                if (!searchQuery.isEmpty()) {
+                    searchQuery = searchQuery.substring(0, searchQuery.length() - 1);
+                    scrollOffset = 0;
+                }
+                return true;
+            }
+
+            if (key == GLFW.GLFW_KEY_ENTER || key == GLFW.GLFW_KEY_KP_ENTER) {
+                searchFocused = false;
+                return true;
+            }
+
+            // Allow copy/paste
+            if (key == GLFW.GLFW_KEY_V && (input.mods() & GLFW.GLFW_MOD_CONTROL) != 0) {
+                String clipboard = this.client != null ? this.client.keyboard.getClipboard() : "";
+                if (clipboard != null) {
+                    searchQuery += clipboard.replaceAll("[^a-zA-Z0-9 _-]", "");
+                    scrollOffset = 0;
+                }
+                return true;
+            }
+
+            // Navigation keys
+            if (key == GLFW.GLFW_KEY_DELETE) {
+                searchQuery = "";
+                scrollOffset = 0;
+                return true;
+            }
+
+            return true; // Consume all other keys while focused
+        }
+
+        // Quick search: any letter/number starts search
+        if (!searchFocused && !input.mods().isPresent()) {
+            String keyName = GLFW.glfwGetKeyName(input.key(), input.scancode());
+            if (keyName != null && keyName.length() == 1 && Character.isLetterOrDigit(keyName.charAt(0))) {
+                searchFocused = true;
+                searchQuery = keyName.toLowerCase();
+                scrollOffset = 0;
+                return true;
+            }
+        }
+
+        return super.keyPressed(input);
+    }
+
+    @Override
+    public boolean charTyped(char chr, int modifiers) {
+        if (searchFocused) {
+            if (chr >= 32 && chr < 127) {
+                searchQuery += Character.toLowerCase(chr);
+                scrollOffset = 0;
+                return true;
+            }
+        }
+        return super.charTyped(chr, modifiers);
+    }
+
+    @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double horizontal, double vertical) {
-        // Handle mouse wheel scrolling
+        // Only scroll if not focused on search
+        if (searchFocused) {
+            return true;
+        }
+
         scrollOffset -= (int) (vertical * 20);
 
-        // Clamp scroll offset
         List<Module> modules = getFilteredModules();
         int rowH = 44;
         int rowSpacing = 6;

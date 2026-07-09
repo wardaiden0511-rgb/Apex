@@ -1,7 +1,9 @@
 package com.example.apexclient.module;
 
+import com.example.apexclient.ApexConfig;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ClientPlayerEntity;
+import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.AxeItem;
@@ -10,12 +12,21 @@ import net.minecraft.item.Items;
 import net.minecraft.network.packet.c2s.play.PlayerInteractEntityC2SPacket;
 import net.minecraft.network.packet.c2s.play.UpdateSelectedSlotC2SPacket;
 import net.minecraft.util.Hand;
+import net.minecraft.util.hit.EntityHitResult;
+import net.minecraft.util.hit.HitResult;
 
 public class StunSlamModule extends Module {
-    private boolean shieldBroken = false;
+    private int originalSlot = -1;
+    private int maceSlot = -1;
     private int swapCooldownTicks = 0;
+    private int attackCooldownTicks = 0;
+    private int state = 0; // 0=idle, 1=swapped, 2=attack-ready, 3=restoring
     private LivingEntity targetEntity = null;
-    private boolean swappedToMace = false;
+
+    // Shield break tracking
+    private boolean targetWasBlocking = false;
+    private int shieldBreakTickCounter = 0;
+    private static final int SHIELD_BREAK_WINDOW_TICKS = 8; // Time after shield break to react
 
     public StunSlamModule() {
         super("Stun Slam");
@@ -23,18 +34,27 @@ public class StunSlamModule extends Module {
 
     @Override
     protected void onEnable() {
-        shieldBroken = false;
-        swapCooldownTicks = 0;
-        targetEntity = null;
-        swappedToMace = false;
+        resetState();
     }
 
     @Override
     protected void onDisable() {
-        shieldBroken = false;
+        // If disabled mid-sequence, restore hotbar
+        if (state > 0 && state < 3 && originalSlot >= 0) {
+            restoreOriginalSlot();
+        }
+        resetState();
+    }
+
+    private void resetState() {
+        originalSlot = -1;
+        maceSlot = -1;
         swapCooldownTicks = 0;
+        attackCooldownTicks = 0;
+        state = 0;
         targetEntity = null;
-        swappedToMace = false;
+        targetWasBlocking = false;
+        shieldBreakTickCounter = 0;
     }
 
     @Override
@@ -49,42 +69,120 @@ public class StunSlamModule extends Module {
 
         ClientPlayerEntity player = client.player;
 
-        // Handle swap cooldown - attack after swap is complete
-        if (swapCooldownTicks > 0) {
-            swapCooldownTicks--;
-            if (swapCooldownTicks == 0 && shieldBroken && targetEntity != null && swappedToMace) {
-                // Attack with mace now that swap is complete
-                attackWithMace(client, player, targetEntity);
-                shieldBroken = false;
-                targetEntity = null;
-                swappedToMace = false;
-            }
+        // State 3: Restore original slot
+        if (state == 3) {
+            restoreOriginalSlot();
+            resetState();
             return;
         }
 
+        // State 2: Attack with mace
+        if (state == 2) {
+            if (attackCooldownTicks > 0) {
+                attackCooldownTicks--;
+                return;
+            }
+
+            if (targetEntity != null && targetEntity.isAlive() && player.networkHandler != null) {
+                // Attack the target with mace
+                player.networkHandler.sendPacket(PlayerInteractEntityC2SPacket.attack(targetEntity, player.isSneaking()));
+                player.swingHand(Hand.MAIN_HAND);
+            }
+
+            state = 3; // Restore next tick
+            return;
+        }
+
+        // State 1: Wait for swap to sync, then prepare to attack
+        if (state == 1) {
+            if (swapCooldownTicks > 0) {
+                swapCooldownTicks--;
+                return;
+            }
+            state = 2;
+            attackCooldownTicks = (int) ApexConfig.stunSlamAttackSpeedTicks;
+            return;
+        }
+
+        // State 0: Monitor for shield break opportunity
         // Check if player is holding an axe
         if (!isHoldingAxe(player)) {
             return;
         }
 
-        // Find nearest enemy
-        LivingEntity target = findNearestEnemy(client, player);
+        // Get target under crosshair (prioritize what player is aiming at)
+        LivingEntity target = getCrosshairTarget(client);
         if (target == null) {
+            target = findNearestEnemyWithShield(client, player);
+        }
+
+        if (target == null || !target.isAlive() || target == player) {
+            targetWasBlocking = false;
+            shieldBreakTickCounter = 0;
             return;
         }
 
-        // Check if target has shield
-        if (!targetHasShield(target)) {
+        // Check distance
+        double horizontalDist = Math.sqrt(
+                Math.pow(target.getX() - player.getX(), 2) +
+                        Math.pow(target.getZ() - player.getZ(), 2)
+        );
+        if (horizontalDist > ApexConfig.stunSlamHorizontalDistance + 1.0) {
+            targetWasBlocking = false;
             return;
         }
 
-        // Check if shield was just broken (axe shield break)
-        if (wasShieldBroken(client, player, target)) {
-            shieldBroken = true;
-            targetEntity = target;
-            swappedToMace = false;
-            swapToMace(client, player);
-            swapCooldownTicks = (int) com.example.apexclient.ApexConfig.stunSlamSwapDelayTicks;
+        boolean isBlocking = targetIsBlockingWithShield(target);
+
+        // Detect shield break: target WAS blocking but is NOT blocking anymore
+        if (targetWasBlocking && !isBlocking) {
+            // Shield was just broken/disabled!
+            shieldBreakTickCounter++;
+
+            if (shieldBreakTickCounter >= 1) { // React immediately on first detection
+                int foundMaceSlot = findMaceSlot(player);
+                if (foundMaceSlot == -1) {
+                    return; // No mace in hotbar
+                }
+
+                // Don't trigger if already holding mace
+                if (player.getInventory().getSelectedSlot() == foundMaceSlot) {
+                    return;
+                }
+
+                originalSlot = player.getInventory().getSelectedSlot();
+                maceSlot = foundMaceSlot;
+                targetEntity = target;
+
+                // Swap to mace
+                player.getInventory().setSelectedSlot(maceSlot);
+                if (player.networkHandler != null) {
+                    player.networkHandler.sendPacket(new UpdateSelectedSlotC2SPacket(maceSlot));
+                }
+
+                state = 1;
+                swapCooldownTicks = (int) ApexConfig.stunSlamSwapDelayTicks;
+                targetWasBlocking = false;
+                shieldBreakTickCounter = 0;
+                return;
+            }
+        } else {
+            shieldBreakTickCounter = 0;
+        }
+
+        // Update tracking state
+        targetWasBlocking = isBlocking;
+    }
+
+    private void restoreOriginalSlot() {
+        if (originalSlot >= 0 && originalSlot <= 8) {
+            ClientPlayerEntity player = net.minecraft.client.MinecraftClient.getInstance().player;
+            if (player != null) {
+                player.getInventory().setSelectedSlot(originalSlot);
+                if (player.networkHandler != null) {
+                    player.networkHandler.sendPacket(new UpdateSelectedSlotC2SPacket(originalSlot));
+                }
+            }
         }
     }
 
@@ -93,26 +191,41 @@ public class StunSlamModule extends Module {
         return !stack.isEmpty() && stack.getItem() instanceof AxeItem;
     }
 
-    private LivingEntity findNearestEnemy(MinecraftClient client, ClientPlayerEntity player) {
+    private LivingEntity getCrosshairTarget(MinecraftClient client) {
+        HitResult hitResult = client.crosshairTarget;
+        if (!(hitResult instanceof EntityHitResult entityHitResult)) {
+            return null;
+        }
+        Entity entity = entityHitResult.getEntity();
+        if (!(entity instanceof LivingEntity livingEntity) || entity == client.player) {
+            return null;
+        }
+        if (!livingEntity.isAlive()) {
+            return null;
+        }
+        return livingEntity;
+    }
+
+    private LivingEntity findNearestEnemyWithShield(MinecraftClient client, ClientPlayerEntity player) {
         LivingEntity nearest = null;
         double nearestDistanceSq = Double.MAX_VALUE;
+        double maxRangeSq = (ApexConfig.stunSlamHorizontalDistance + 1.0) *
+                (ApexConfig.stunSlamHorizontalDistance + 1.0);
 
         for (var entity : client.world.getEntities()) {
             if (!(entity instanceof LivingEntity livingEntity)) {
                 continue;
             }
-
-            if (entity == player) {
+            if (entity == player || !entity.isAlive()) {
                 continue;
             }
 
-            if (!entity.isAlive()) {
-                continue;
-            }
-
-            // Check if within range
             double distanceSq = player.squaredDistanceTo(entity);
-            if (distanceSq > 9.0) { // 3 blocks range
+            if (distanceSq > maxRangeSq) {
+                continue;
+            }
+
+            if (!targetIsBlockingWithShield(livingEntity)) {
                 continue;
             }
 
@@ -125,52 +238,11 @@ public class StunSlamModule extends Module {
         return nearest;
     }
 
-    private boolean targetHasShield(LivingEntity target) {
-        if (target instanceof PlayerEntity targetPlayer) {
-            ItemStack offHand = targetPlayer.getOffHandStack();
-            ItemStack mainHand = targetPlayer.getMainHandStack();
-            return offHand.getItem() == Items.SHIELD || mainHand.getItem() == Items.SHIELD;
+    private boolean targetIsBlockingWithShield(LivingEntity target) {
+        if (!(target instanceof PlayerEntity targetPlayer)) {
+            return false;
         }
-        return false;
-    }
-
-    private boolean wasShieldBroken(MinecraftClient client, ClientPlayerEntity player, LivingEntity target) {
-        // Check if attack cooldown is ready and looking at target
-        return player.getAttackCooldownProgress(0.0F) >= 0.9F && isLookingAtTarget(player, target);
-    }
-
-    private boolean isLookingAtTarget(ClientPlayerEntity player, LivingEntity target) {
-        // Simple check if player is looking at the target
-        double dx = target.getX() - player.getX();
-        double dz = target.getZ() - player.getZ();
-        double angle = Math.toDegrees(Math.atan2(dz, dx));
-        double playerYaw = player.getYaw() % 360;
-        if (playerYaw < 0) playerYaw += 360;
-
-        double angleDiff = Math.abs(angle - playerYaw);
-        return angleDiff < 30 || angleDiff > 330;
-    }
-
-    private void swapToMace(MinecraftClient client, ClientPlayerEntity player) {
-        int maceSlot = findMaceSlot(player);
-        if (maceSlot == -1) {
-            return;
-        }
-
-        // Swap to mace via packet and client-side
-        player.getInventory().setSelectedSlot(maceSlot);
-        if (player.networkHandler != null) {
-            player.networkHandler.sendPacket(new UpdateSelectedSlotC2SPacket(maceSlot));
-        }
-        swappedToMace = true;
-    }
-
-    private void attackWithMace(MinecraftClient client, ClientPlayerEntity player, LivingEntity target) {
-        // Attack with mace
-        if (player.networkHandler != null) {
-            player.networkHandler.sendPacket(PlayerInteractEntityC2SPacket.attack(target, player.isSneaking()));
-        }
-        player.swingHand(Hand.MAIN_HAND);
+        return targetPlayer.isBlocking() && targetPlayer.getActiveItem().isOf(Items.SHIELD);
     }
 
     private int findMaceSlot(ClientPlayerEntity player) {
