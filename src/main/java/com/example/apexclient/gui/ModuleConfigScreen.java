@@ -13,7 +13,7 @@ import org.lwjgl.glfw.GLFW;
 
 public class ModuleConfigScreen extends Screen {
     private static final int PANEL_WIDTH = 420;
-    private static final int PANEL_HEIGHT = 360;
+    private static final int PANEL_HEIGHT = 380;
 
     private static final int COLOR_OVERLAY = 0xB8000000;
     private static final int COLOR_OUTER = 0xFF070708;
@@ -41,6 +41,9 @@ public class ModuleConfigScreen extends Screen {
     private static final int SLIDER_PRESSURE_WEB_DELAY = 5;
     private static final int SLIDER_PRESSURE_WEB_SWAP_SPEED = 6;
     private static final int SLIDER_STUN_SLAM_SWAP_DELAY = 7;
+    private static final int SLIDER_STUN_SLAM_ATTACK_SPEED = 8;
+    private static final int SLIDER_STUN_SLAM_HORIZONTAL_DIST = 9;
+    private static final int SLIDER_STUN_SLAM_FALL_DIST = 10;
 
     private final Module module;
 
@@ -116,21 +119,28 @@ public class ModuleConfigScreen extends Screen {
         } else if (isPressureWeb()) {
             drawToggle(context, mouseX, mouseY, 0, "Enabled", ApexConfig.pressureWebEnabled,
                     "Auto-place cobweb on pressure plate");
-            drawSlider(context, mouseX, mouseY, 1, "Web Delay", ApexConfig.pressureWebDelayTicks,
+            drawSlider(context, mouseX, mouseY, 1, "Web Delay (ticks)", ApexConfig.pressureWebDelayTicks,
                     ApexConfig.PRESSURE_WEB_MIN_DELAY_TICKS, ApexConfig.PRESSURE_WEB_MAX_DELAY_TICKS);
-            drawSlider(context, mouseX, mouseY, 2, "Swap Speed", ApexConfig.pressureWebSwapSpeedTicks,
+            drawSlider(context, mouseX, mouseY, 2, "Swap Speed (ticks)", ApexConfig.pressureWebSwapSpeedTicks,
                     ApexConfig.PRESSURE_WEB_MIN_SWAP_SPEED_TICKS, ApexConfig.PRESSURE_WEB_MAX_SWAP_SPEED_TICKS);
             drawInfoRow(context, mouseX, mouseY, 3,
                     "Auto-places cobweb after pressure plate",
                     "Requires cobweb in hotbar");
             drawBindRow(context, mouseX, mouseY, 4);
         } else if (isStunSlam()) {
-            drawSlider(context, mouseX, mouseY, 0, "Swap Delay", ApexConfig.stunSlamSwapDelayTicks,
+            drawSlider(context, mouseX, mouseY, 0, "Swap Delay (ticks)", ApexConfig.stunSlamSwapDelayTicks,
                     ApexConfig.STUN_SLAM_MIN_SWAP_DELAY_TICKS, ApexConfig.STUN_SLAM_MAX_SWAP_DELAY_TICKS);
-            drawInfoRow(context, mouseX, mouseY, 1,
+            drawSlider(context, mouseX, mouseY, 1, "Attack Speed (ticks)", ApexConfig.stunSlamAttackSpeedTicks,
+                    ApexConfig.STUN_SLAM_MIN_ATTACK_SPEED_TICKS, ApexConfig.STUN_SLAM_MAX_ATTACK_SPEED_TICKS);
+            drawSlider(context, mouseX, mouseY, 2, "Horizontal Range", ApexConfig.stunSlamHorizontalDistance,
+                    ApexConfig.STUN_SLAM_MIN_HORIZONTAL_DISTANCE, ApexConfig.STUN_SLAM_MAX_HORIZONTAL_DISTANCE);
+            drawInfoRow(context, mouseX, mouseY, 3,
                     "Auto-swap to mace after shield break",
-                    "Requires axe and mace in hotbar");
-            drawBindRow(context, mouseX, mouseY, 2);
+                    "Requires axe + mace in hotbar");
+            drawInfoRow(context, mouseX, mouseY, 4,
+                    "Hold axe, hit shielding enemy",
+                    "Module swaps to mace on shield disable");
+            drawBindRow(context, mouseX, mouseY, 5);
         } else {
             drawInfoRow(context, mouseX, mouseY, 0, "No settings for this module", "Only bind/toggle available from main GUI");
         }
@@ -314,7 +324,9 @@ public class ModuleConfigScreen extends Screen {
             if (handleBindRowClick(mouseX, mouseY, 4)) return true;
         } else if (isStunSlam()) {
             if (startSliderDrag(mouseX, mouseY, 0, SLIDER_STUN_SLAM_SWAP_DELAY)) return true;
-            if (handleBindRowClick(mouseX, mouseY, 2)) return true;
+            if (startSliderDrag(mouseX, mouseY, 1, SLIDER_STUN_SLAM_ATTACK_SPEED)) return true;
+            if (startSliderDrag(mouseX, mouseY, 2, SLIDER_STUN_SLAM_HORIZONTAL_DIST)) return true;
+            if (handleBindRowClick(mouseX, mouseY, 5)) return true;
         }
 
         return super.mouseClicked(click, doubled);
@@ -359,6 +371,16 @@ public class ModuleConfigScreen extends Screen {
 
         if (draggingSlider == SLIDER_STUN_SLAM_SWAP_DELAY) {
             updateSliderFromMouse(click.x(), ApexConfig.STUN_SLAM_MIN_SWAP_DELAY_TICKS, ApexConfig.STUN_SLAM_MAX_SWAP_DELAY_TICKS, SLIDER_STUN_SLAM_SWAP_DELAY);
+            return true;
+        }
+
+        if (draggingSlider == SLIDER_STUN_SLAM_ATTACK_SPEED) {
+            updateSliderFromMouse(click.x(), ApexConfig.STUN_SLAM_MIN_ATTACK_SPEED_TICKS, ApexConfig.STUN_SLAM_MAX_ATTACK_SPEED_TICKS, SLIDER_STUN_SLAM_ATTACK_SPEED);
+            return true;
+        }
+
+        if (draggingSlider == SLIDER_STUN_SLAM_HORIZONTAL_DIST) {
+            updateSliderFromMouse(click.x(), ApexConfig.STUN_SLAM_MIN_HORIZONTAL_DISTANCE, ApexConfig.STUN_SLAM_MAX_HORIZONTAL_DISTANCE, SLIDER_STUN_SLAM_HORIZONTAL_DIST);
             return true;
         }
 
@@ -422,6 +444,10 @@ public class ModuleConfigScreen extends Screen {
             updateSliderFromMouse(mouseX, ApexConfig.PRESSURE_WEB_MIN_SWAP_SPEED_TICKS, ApexConfig.PRESSURE_WEB_MAX_SWAP_SPEED_TICKS, sliderType);
         } else if (sliderType == SLIDER_STUN_SLAM_SWAP_DELAY) {
             updateSliderFromMouse(mouseX, ApexConfig.STUN_SLAM_MIN_SWAP_DELAY_TICKS, ApexConfig.STUN_SLAM_MAX_SWAP_DELAY_TICKS, sliderType);
+        } else if (sliderType == SLIDER_STUN_SLAM_ATTACK_SPEED) {
+            updateSliderFromMouse(mouseX, ApexConfig.STUN_SLAM_MIN_ATTACK_SPEED_TICKS, ApexConfig.STUN_SLAM_MAX_ATTACK_SPEED_TICKS, sliderType);
+        } else if (sliderType == SLIDER_STUN_SLAM_HORIZONTAL_DIST) {
+            updateSliderFromMouse(mouseX, ApexConfig.STUN_SLAM_MIN_HORIZONTAL_DISTANCE, ApexConfig.STUN_SLAM_MAX_HORIZONTAL_DISTANCE, sliderType);
         }
 
         return true;
@@ -458,6 +484,10 @@ public class ModuleConfigScreen extends Screen {
             ApexConfig.pressureWebSwapSpeedTicks = ApexConfig.clampPressureWebSwapSpeedTicks(newValue);
         } else if (sliderType == SLIDER_STUN_SLAM_SWAP_DELAY) {
             ApexConfig.stunSlamSwapDelayTicks = ApexConfig.clampStunSlamSwapDelayTicks(newValue);
+        } else if (sliderType == SLIDER_STUN_SLAM_ATTACK_SPEED) {
+            ApexConfig.stunSlamAttackSpeedTicks = ApexConfig.clampStunSlamAttackSpeedTicks(newValue);
+        } else if (sliderType == SLIDER_STUN_SLAM_HORIZONTAL_DIST) {
+            ApexConfig.stunSlamHorizontalDistance = ApexConfig.clampStunSlamHorizontalDistance(newValue);
         }
 
         ConfigManager.save();
